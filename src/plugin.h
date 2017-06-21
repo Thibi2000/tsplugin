@@ -143,6 +143,10 @@ PLUGINS_EXPORTDLL const char* ts3plugin_keyDeviceName(const char* keyIdentifier)
 PLUGINS_EXPORTDLL const char* ts3plugin_displayKeyText(const char* keyIdentifier);
 PLUGINS_EXPORTDLL const char* ts3plugin_keyPrefix();
 
+/* Custom Functions */
+char* parseCommand(enum USER_COMMAND command, const char* argument);
+void sendMessageToChannel(uint64 serverConnectionHandlerID, anyID fromID, char* message);
+
 #ifdef __cplusplus
 }
 #endif

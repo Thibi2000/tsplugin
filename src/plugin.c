@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <time.h>
 #include "teamspeak/public_errors.h"
 #include "teamspeak/public_errors_rare.h"
 #include "teamspeak/public_definitions.h"
@@ -26,7 +27,6 @@ static struct TS3Functions ts3Functions;
 #ifdef _WIN32
 #define _strcpy(dest, destSize, src) strcpy_s(dest, destSize, src)
 #define snprintf sprintf_s
-#define strcasecmp stricmp
 #else
 #define _strcpy(dest, destSize, src) { strncpy(dest, src, destSize-1); (dest)[destSize-1] = '\0'; }
 #endif
@@ -544,8 +544,8 @@ enum {
 	MENU_ID_CHANNEL_1,
 	MENU_ID_CHANNEL_2,
 	MENU_ID_CHANNEL_3,
-	MENU_ID_GLOBAL_1
-	//MENU_ID_GLOBAL_2
+	MENU_ID_GLOBAL_1,
+	MENU_ID_GLOBAL_2
 };
 
 /*
@@ -572,13 +572,13 @@ void ts3plugin_initMenus(struct PluginMenuItem*** menuItems, char** menuIcon) {
 	 * e.g. for "test_plugin.dll", icon "1.png" is loaded from <TeamSpeak 3 Client install dir>\plugins\test_plugin\1.png
 	 */
 
-	BEGIN_CREATE_MENUS(7);  /* IMPORTANT: Number of menu items must be correct! */
-	CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CLIENT,  MENU_ID_CLIENT_1,  "Client item 1",  "1.png");
-	CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CLIENT,  MENU_ID_CLIENT_2,  "Client item 2",  "2.png");
-	CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CHANNEL, MENU_ID_CHANNEL_1, "Channel item 1", "1.png");
-	CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CHANNEL, MENU_ID_CHANNEL_2, "Channel item 2", "2.png");
-	CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CHANNEL, MENU_ID_CHANNEL_3, "Channel item 3", "3.png");
-	CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_GLOBAL,  MENU_ID_GLOBAL_1,  "Hallo iedereen :)",  "pepper.png");
+	BEGIN_CREATE_MENUS(1);  /* IMPORTANT: Number of menu items must be correct! */
+	//CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CLIENT,  MENU_ID_CLIENT_1,  "Client item 1",  "1.png");
+	//CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CLIENT,  MENU_ID_CLIENT_2,  "Client item 2",  "2.png");
+	//CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CHANNEL, MENU_ID_CHANNEL_1, "Channel item 1", "1.png");
+	//CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CHANNEL, MENU_ID_CHANNEL_2, "Channel item 2", "2.png");
+	//CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CHANNEL, MENU_ID_CHANNEL_3, "Channel item 3", "3.png");
+	CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_GLOBAL,  MENU_ID_GLOBAL_1,  "Hallo iedereen :)",  "");
 	//CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_GLOBAL,  MENU_ID_GLOBAL_2,  "Global item 2",  "2.png");
 	END_CREATE_MENUS;  /* Includes an assert checking if the number of menu items matched */
 
@@ -587,7 +587,7 @@ void ts3plugin_initMenus(struct PluginMenuItem*** menuItems, char** menuIcon) {
 	 * If unused, set menuIcon to NULL
 	 */
 	*menuIcon = (char*)malloc(PLUGIN_MENU_BUFSZ * sizeof(char));
-	_strcpy(*menuIcon, PLUGIN_MENU_BUFSZ, "pepper.png");
+	_strcpy(*menuIcon, PLUGIN_MENU_BUFSZ, "icon.png");
 
 	/*
 	 * Menus can be enabled or disabled with: ts3Functions.setPluginMenuEnabled(pluginID, menuID, 0|1);
@@ -798,6 +798,15 @@ int ts3plugin_onServerErrorEvent(uint64 serverConnectionHandlerID, const char* e
 void ts3plugin_onServerStopEvent(uint64 serverConnectionHandlerID, const char* shutdownMessage) {
 }
 
+enum USER_COMMAND {
+	COMMAND_WUK = 1,
+	// A roll command expects one argument in the form of a number specifying the upperbound for the roll.
+	COMMAND_ROLL,
+	COMMAND_MAXIM
+};
+
+typedef enum USER_COMMAND USER_COMMAND_T;
+
 int ts3plugin_onTextMessageEvent(uint64 serverConnectionHandlerID, anyID targetMode, anyID toID, anyID fromID, const char* fromName, const char* fromUniqueIdentifier, const char* message, int ffIgnored) {
     //printf("PLUGIN: onTextMessageEvent %llu %d %d %s %s %d\n", (long long unsigned int)serverConnectionHandlerID, targetMode, fromID, fromName, message, ffIgnored);
 
@@ -811,7 +820,7 @@ int ts3plugin_onTextMessageEvent(uint64 serverConnectionHandlerID, anyID targetM
 		/* Example code: Autoreply to sender */
 		/* Disabled because quite annoying, but should give you some ideas what is possible here */
 		/* Careful, when two clients use this, they will get banned quickly... */
-		anyID myID;
+		//anyID myID;
 		//if(ts3Functions.getClientID(serverConnectionHandlerID, &myID) != ERROR_ok) {
 		//	ts3Functions.logMessage("Error querying own client id", LogLevel_ERROR, "Plugin", serverConnectionHandlerID);
 		//	return 0;
@@ -821,15 +830,74 @@ int ts3plugin_onTextMessageEvent(uint64 serverConnectionHandlerID, anyID targetM
 		//		ts3Functions.logMessage("Error requesting send text message", LogLevel_ERROR, "Plugin", serverConnectionHandlerID);
 		//	}
 		//}
-		if (targetMode == TextMessageTarget_CHANNEL && strcmp(message, "wuk") == 0) { /* For any messages sent in the channel */
-			if (ts3Functions.requestSendChannelTextMsg(serverConnectionHandlerID, "[url=http://i.imgur.com/c1xOQV1.png/]Wadist?[/url]", fromID, NULL) != ERROR_ok) {
-				ts3Functions.logMessage("Error requesting send text message", LogLevel_ERROR, "Plugin", serverConnectionHandlerID);
+		char* response = "";
+		if (targetMode == TextMessageTarget_CHANNEL) {
+			if (strcmp(message, "wuk") == 0) {
+				response = parseCommand(COMMAND_WUK, message);
+			} 
+			else if (strcmp(message, "heheeeh") == 0) {
+				response = parseCommand(COMMAND_MAXIM, message);
 			}
+			else { // else check if it's a roll. TODO: tokenize every input string before looking which command it is
+				// copy message because the strtok function will mess it up
+				char messageCopy[sizeof(message) * sizeof(char)];
+				strcpy(messageCopy, message);
+				char *token = strtok(messageCopy, " ");
+				if (strcmp(token, "roll") == 0) {
+					token = strtok(NULL, " ");
+					if (token) {
+						response = parseCommand(COMMAND_ROLL, token);
+					}
+				}
+			}
+		}
+		if (strcmp(response, "") != 0) {
+			sendMessageToChannel(serverConnectionHandlerID, fromID, response);
 		}
 	}
 //#endif
 
     return 0;  /* 0 = handle normally, 1 = client will ignore the text message */
+}
+
+char* parseCommand(enum USER_COMMAND command, const char* argument) {
+	switch (command) {
+	case COMMAND_WUK:
+		return "[url=http://i.imgur.com/c1xOQV1.png/]Wadist?[/url]";	
+	case COMMAND_ROLL: {
+		char* result;
+		// Check if it is made up of only digits
+		int amountOfDigits = 0;
+		int i = 0;
+		while (isdigit(argument[i])) {
+			amountOfDigits++;
+			i++;
+		}
+		// Return empty string if no number was found
+		if (amountOfDigits == 0) {
+			result = malloc((2 * sizeof(char)) + 1);
+			memcpy(result, "", 2);
+			return result;
+		}
+		// Calculate roll
+		int upperBound = atoi(argument);
+		srand(time(NULL));   // should only be called once
+		int roll = rand() % upperBound;
+
+		result = (char*)malloc(128 * sizeof(char) + 1);
+		snprintf(result, 14 + sizeof(char) * amountOfDigits, "You rolled %d\n", roll);
+		return result;
+	}
+	case COMMAND_MAXIM:
+		return "[url=https://puu.sh/woTR2/1acabd13b6.mp3/]Heheeeeh[/url]";
+	}
+	return "";
+}
+
+void sendMessageToChannel(uint64 serverConnectionHandlerID, anyID fromID, char* message) {
+	if (ts3Functions.requestSendChannelTextMsg(serverConnectionHandlerID, message, fromID, NULL) != ERROR_ok) {
+		ts3Functions.logMessage("Command failed.", LogLevel_ERROR, "Plugin", serverConnectionHandlerID);
+	}
 }
 
 void ts3plugin_onTalkStatusChangeEvent(uint64 serverConnectionHandlerID, int status, int isReceivedWhisper, anyID clientID) {
@@ -916,7 +984,7 @@ int ts3plugin_onClientPokeEvent(uint64 serverConnectionHandlerID, anyID fromClie
         return 0;
     }
     if(fromClientID != myID) {  /* Don't reply when source is own client */
-        if(ts3Functions.requestSendPrivateTextMsg(serverConnectionHandlerID, "Received your poke!", fromClientID, NULL) != ERROR_ok) {
+        if(ts3Functions.requestSendPrivateTextMsg(serverConnectionHandlerID, "Howdy partner! I sure diddly doodly doo received your poke! Hang on tight, pal!", fromClientID, NULL) != ERROR_ok) {
             ts3Functions.logMessage("Error requesting send text message", LogLevel_ERROR, "Plugin", serverConnectionHandlerID);
         }
     }
